@@ -1,0 +1,892 @@
+// Truehost Cloud Campus Builders — Prisma Schema
+// PostgreSQL 16 | Prisma ORM
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum InstitutionType {
+  UNIVERSITY
+  TVET
+}
+
+enum ChapterStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_SETUP
+  SUSPENDED
+}
+
+enum LeadRole {
+  LEAD
+  DEPUTY_LEAD
+}
+
+enum AmbassadorTier {
+  CAMPUS_AMBASSADOR
+  CHAPTER_LEAD_ACHIEVEMENT
+  NATIONAL_CLOUD_FELLOW
+}
+
+enum SubmissionStatus {
+  DRAFT
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REQUIRES_CORRECTION
+}
+
+enum PointsTransactionType {
+  ACTIVITY_APPROVED
+  POINTS_REVOKED
+  BONUS_POINTS
+  POINTS_ADJUSTED
+  MILESTONE_BONUS
+}
+
+enum ReferralStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  DUPLICATE
+}
+
+enum ProjectStatus {
+  IN_PROGRESS
+  DEPLOYED
+  VERIFIED
+  ARCHIVED
+}
+
+enum WorkshopStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+  POSTPONED
+}
+
+enum EventCategory {
+  TECH_CONFERENCE
+  UNIVERSITY_WORKSHOP
+  HACKATHON
+  DEVELOPER_MEETUP
+  CAREER_FAIR
+  STARTUP_EVENT
+  INNOVATION_EXHIBITION
+  ENTREPRENEURSHIP
+  WEBINAR
+  TRAINING
+  RESEARCH_EVENT
+  COMPETITION
+  OTHER
+}
+
+enum EventStatus {
+  DISCOVERED
+  UNDER_REVIEW
+  CONTACTED
+  APPLICATION_SUBMITTED
+  FOLLOW_UP_REQUIRED
+  CONFIRMED
+  ATTENDED
+  COMPLETED
+  REJECTED
+  UNSUCCESSFUL
+  CANCELLED
+  POSTPONED
+}
+
+enum ParticipationRole {
+  ATTENDEE
+  SPEAKER
+  PANELIST
+  WORKSHOP_FACILITATOR
+  JUDGE
+  SPONSOR
+  TECHNOLOGY_PARTNER
+  EXHIBITOR
+  MEDIA_REPRESENTATIVE
+  ORGANISING_PARTNER
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
+enum InteractionType {
+  INITIAL_CONTACT
+  FOLLOW_UP
+  PITCH_SENT
+  PROPOSAL_SENT
+  MEETING
+  CALL
+  EMAIL
+  LINKEDIN
+  RESPONSE_RECEIVED
+  NEGOTIATION
+  AGREEMENT
+  POST_EVENT
+}
+
+enum MediaType {
+  PODCAST
+  ONLINE_PUBLICATION
+  NEWSPAPER
+  RADIO
+  TELEVISION
+  BUSINESS_PUBLICATION
+  TECH_BLOG
+  NEWSLETTER
+  SOCIAL_MEDIA
+  OTHER
+}
+
+enum MediaOutreachStatus {
+  IDENTIFIED
+  RESEARCHING
+  CONTACTED
+  PITCH_SUBMITTED
+  FOLLOW_UP
+  ACCEPTED
+  SCHEDULED
+  PUBLISHED
+  COMPLETED
+  REJECTED
+  ON_HOLD
+}
+
+enum NotificationType {
+  SUBMISSION_RECEIVED
+  SUBMISSION_APPROVED
+  SUBMISSION_REJECTED
+  SUBMISSION_CORRECTION_REQUIRED
+  MILESTONE_ACHIEVED
+  CERTIFICATE_ISSUED
+  NEW_OPPORTUNITY
+  EVENT_REMINDER
+  FOLLOW_UP_DUE
+  MONTHLY_REPORT_DUE
+  SYSTEM_ANNOUNCEMENT
+  REGISTRATION_APPROVED
+}
+
+enum UserSystemRole {
+  SUPER_ADMIN
+  CAMPUS_LEAD
+  AMBASSADOR
+}
+
+// ─────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailVerified     DateTime?
+  passwordHash      String
+  firstName         String
+  lastName          String
+  phone             String?
+  profilePhoto      String?
+  systemRole        UserSystemRole @default(AMBASSADOR)
+  isActive          Boolean   @default(true)
+  isSuspended       Boolean   @default(false)
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+
+  // Relations
+  ambassadorProfile       AmbassadorProfile?
+  campusLeadAssignments   CampusLeadAssignment[]
+  activitiesReviewed      ActivitySubmission[]    @relation("ReviewedBy")
+  certificatesIssued      Certificate[]           @relation("IssuedTo")
+  notificationsReceived   Notification[]
+  auditLogsCreated        AuditLog[]
+  reportsGenerated        Report[]
+  workshopsHosted         Workshop[]              @relation("WorkshopFacilitator")
+  eventsAssigned          Event[]                 @relation("EventRep")
+  communityMetricsReported CommunityMetric[]      @relation("MetricReporter")
+  communityMetricsVerified CommunityMetric[]      @relation("MetricVerifier")
+  passwordResetTokens     PasswordResetToken[]
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// ─────────────────────────────────────────────
+// INSTITUTIONS & CHAPTERS
+// ─────────────────────────────────────────────
+
+model Institution {
+  id          String          @id @default(cuid())
+  name        String
+  shortName   String?
+  type        InstitutionType
+  county      String
+  town        String
+  region      String?
+  website     String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  chapters    Chapter[]
+  ambassadors AmbassadorProfile[]
+
+  @@map("institutions")
+}
+
+model Chapter {
+  id                String        @id @default(cuid())
+  institutionId     String
+  institution       Institution   @relation(fields: [institutionId], references: [id])
+  whatsappGroupLink String?
+  whatsappGroupName String?
+  status            ChapterStatus @default(ACTIVE)
+  foundedAt         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Configurable targets
+  targetAmbassadors Int?
+  targetReferrals   Int?
+  targetWorkshops   Int?
+  targetProjects    Int?
+
+  // Relations
+  leadAssignments  CampusLeadAssignment[]
+  memberships      ChapterMembership[]
+  communityGroups  CommunityGroup[]
+  communityMetrics CommunityMetric[]
+  activities       ActivitySubmission[]
+  workshops        Workshop[]
+  events           Event[]
+
+  @@map("chapters")
+}
+
+model CampusLeadAssignment {
+  id          String    @id @default(cuid())
+  chapterId   String
+  chapter     Chapter   @relation(fields: [chapterId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  role        LeadRole
+  assignedAt  DateTime  @default(now())
+  revokedAt   DateTime? // null = currently active
+  assignedBy  String    // User ID of admin who assigned
+  notes       String?
+
+  @@index([chapterId, revokedAt])
+  @@map("campus_lead_assignments")
+}
+
+model ChapterMembership {
+  id              String            @id @default(cuid())
+  chapterId       String
+  chapter         Chapter           @relation(fields: [chapterId], references: [id])
+  ambassadorId    String
+  ambassador      AmbassadorProfile @relation(fields: [ambassadorId], references: [id])
+  joinedAt        DateTime          @default(now())
+  leftAt          DateTime?         // null = currently member
+  transferredFrom String?           // previous chapter ID
+  notes           String?
+
+  @@unique([ambassadorId, chapterId, joinedAt])
+  @@map("chapter_memberships")
+}
+
+// ─────────────────────────────────────────────
+// AMBASSADOR PROFILES
+// ─────────────────────────────────────────────
+
+model AmbassadorProfile {
+  id                      String         @id @default(cuid())
+  userId                  String         @unique
+  user                    User           @relation(fields: [userId], references: [id])
+  institutionId           String
+  institution             Institution    @relation(fields: [institutionId], references: [id])
+  studentId               String?
+  course                  String?
+  yearOfStudy             Int?
+  graduationYear          Int?
+  linkedinUrl             String?
+  githubUrl               String?
+  twitterUrl              String?
+  bio                     String?
+  skills                  String[]
+  onboardingCompleted     Boolean        @default(false)
+  onboardingCompletedAt   DateTime?
+  currentTier             AmbassadorTier @default(CAMPUS_AMBASSADOR)
+  totalPoints             Int            @default(0)
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  // Relations
+  memberships      ChapterMembership[]
+  referralsMade    Referral[]          @relation("ReferredBy")
+  referredVia      Referral?           @relation("ReferredStudent")
+  tierAchievements TierAchievement[]
+  certificates     Certificate[]
+  pointsLedger     PointsTransaction[]
+  submissions      ActivitySubmission[]
+  projects         StudentProject[]
+
+  @@map("ambassador_profiles")
+}
+
+// ─────────────────────────────────────────────
+// ACTIVITY TYPES & SUBMISSIONS
+// ─────────────────────────────────────────────
+
+model ActivityType {
+  id                       String   @id @default(cuid())
+  name                     String   @unique
+  category                 String
+  description              String?
+  basePoints               Int      @default(0)
+  maxPointsPerMonth        Int?
+  requiresEvidence         Boolean  @default(true)
+  requiresParticipantCount Boolean  @default(false)
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  submissions ActivitySubmission[]
+
+  @@map("activity_types")
+}
+
+model ActivitySubmission {
+  id                  String             @id @default(cuid())
+  ambassadorId        String
+  ambassador          AmbassadorProfile  @relation(fields: [ambassadorId], references: [id])
+  chapterId           String
+  chapter             Chapter            @relation(fields: [chapterId], references: [id])
+  activityTypeId      String
+  activityType        ActivityType       @relation(fields: [activityTypeId], references: [id])
+  title               String
+  description         String
+  activityDate        DateTime
+  participantCount    Int?
+  relevantUrls        String[]
+  expectedOutcome     String?
+  actualOutcome       String?
+  status              SubmissionStatus   @default(DRAFT)
+  pointsAwarded       Int?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  reviewedById        String?
+  reviewedBy          User?              @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewFeedback      String?
+  requiresCorrection  Boolean            @default(false)
+  duplicateCheckHash  String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  evidence          ActivityEvidence[]
+  pointsTransaction PointsTransaction?
+
+  @@index([ambassadorId, status])
+  @@index([chapterId, activityDate])
+  @@map("activity_submissions")
+}
+
+model ActivityEvidence {
+  id           String             @id @default(cuid())
+  submissionId String
+  submission   ActivitySubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fileUrl      String
+  fileType     String             // image | pdf | video_link | screenshot
+  fileName     String
+  fileSize     Int?
+  uploadedAt   DateTime           @default(now())
+
+  @@map("activity_evidence")
+}
+
+// ─────────────────────────────────────────────
+// POINTS & MILESTONES
+// ─────────────────────────────────────────────
+
+model PointsTransaction {
+  id              String                @id @default(cuid())
+  ambassadorId    String
+  ambassador      AmbassadorProfile     @relation(fields: [ambassadorId], references: [id])
+  submissionId    String?               @unique
+  submission      ActivitySubmission?   @relation(fields: [submissionId], references: [id])
+  points          Int                   // positive = earned, negative = revoked
+  reason          String
+  transactionType PointsTransactionType
+  createdAt       DateTime              @default(now())
+  createdBy       String                // User ID
+
+  @@index([ambassadorId, createdAt])
+  @@map("points_transactions")
+}
+
+model Milestone {
+  id                 String                @id @default(cuid())
+  name               String
+  tier               AmbassadorTier
+  description        String
+  pointsRequired     Int
+  workshopsRequired  Int                   @default(0)
+  referralsRequired  Int                   @default(0)
+  projectsRequired   Int                   @default(0)
+  onboardingRequired Boolean               @default(false)
+  isActive           Boolean               @default(true)
+  bonusPoints        Int                   @default(0)
+  templateId         String?
+  template           CertificateTemplate?  @relation(fields: [templateId], references: [id])
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  achievements TierAchievement[]
+
+  @@map("milestones")
+}
+
+model TierAchievement {
+  id           String            @id @default(cuid())
+  ambassadorId String
+  ambassador   AmbassadorProfile @relation(fields: [ambassadorId], references: [id])
+  milestoneId  String
+  milestone    Milestone         @relation(fields: [milestoneId], references: [id])
+  achievedAt   DateTime          @default(now())
+  verifiedBy   String?
+  certificate  Certificate?
+
+  @@unique([ambassadorId, milestoneId])
+  @@map("tier_achievements")
+}
+
+// ─────────────────────────────────────────────
+// REFERRALS & STUDENT PROJECTS
+// ─────────────────────────────────────────────
+
+model Referral {
+  id                String            @id @default(cuid())
+  referrerId        String
+  referrer          AmbassadorProfile @relation("ReferredBy", fields: [referrerId], references: [id])
+  referredStudentId String?           @unique
+  referredStudent   AmbassadorProfile? @relation("ReferredStudent", fields: [referredStudentId], references: [id])
+  studentName       String
+  studentEmail      String
+  studentPhone      String?
+  institution       String
+  verificationStatus ReferralStatus   @default(PENDING)
+  verifiedAt        DateTime?
+  verifiedBy        String?
+  notes             String?
+  createdAt         DateTime          @default(now())
+
+  @@index([referrerId, verificationStatus])
+  @@map("referrals")
+}
+
+model StudentProject {
+  id                  String            @id @default(cuid())
+  ambassadorId        String
+  ambassador          AmbassadorProfile @relation(fields: [ambassadorId], references: [id])
+  projectName         String
+  description         String
+  projectUrl          String?
+  repoUrl             String?
+  deployedOnTruehost  Boolean           @default(false)
+  deploymentUrl       String?
+  techStack           String[]
+  status              ProjectStatus     @default(IN_PROGRESS)
+  studentNames        String[]
+  submittedAt         DateTime          @default(now())
+  verifiedAt          DateTime?
+  verifiedBy          String?
+
+  @@map("student_projects")
+}
+
+// ─────────────────────────────────────────────
+// WORKSHOPS & EVENTS
+// ─────────────────────────────────────────────
+
+model Workshop {
+  id                String         @id @default(cuid())
+  chapterId         String
+  chapter           Chapter        @relation(fields: [chapterId], references: [id])
+  title             String
+  description       String
+  workshopDate      DateTime
+  venue             String?
+  isOnline          Boolean        @default(false)
+  onlineLink        String?
+  facilitatorName   String
+  facilitatorUserId String?
+  facilitatorUser   User?          @relation("WorkshopFacilitator", fields: [facilitatorUserId], references: [id])
+  registeredCount   Int            @default(0)
+  attendedCount     Int            @default(0)
+  status            WorkshopStatus @default(PLANNED)
+  reportUrl         String?
+  photos            String[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@map("workshops")
+}
+
+model Event {
+  id                     String            @id @default(cuid())
+  chapterId              String?
+  chapter                Chapter?          @relation(fields: [chapterId], references: [id])
+  name                   String
+  organiser              String
+  description            String
+  category               EventCategory
+  location               String
+  isOnline               Boolean           @default(false)
+  eventDate              DateTime
+  registrationDeadline   DateTime?
+  website                String?
+  applicationUrl         String?
+  contactPerson          String?
+  contactEmail           String?
+  contactPhone           String?
+  targetAudience         String?
+  estimatedParticipants  Int?
+  assignedRepUserId      String?
+  assignedRep            User?             @relation("EventRep", fields: [assignedRepUserId], references: [id])
+  partnershipOpportunity Boolean           @default(false)
+  speakerOpportunity     Boolean           @default(false)
+  sponsorshipOpportunity Boolean           @default(false)
+  exhibitionOpportunity  Boolean           @default(false)
+  status                 EventStatus       @default(DISCOVERED)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  registrations EventRegistration[]
+  attendance    EventAttendance[]
+  interactions  OrganiserInteraction[]
+
+  @@map("events")
+}
+
+model EventRegistration {
+  id           String             @id @default(cuid())
+  eventId      String
+  event        Event              @relation(fields: [eventId], references: [id])
+  userId       String
+  role         ParticipationRole
+  registeredAt DateTime           @default(now())
+  status       RegistrationStatus @default(REGISTERED)
+
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+model EventAttendance {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id])
+  userId      String
+  checkedInAt DateTime @default(now())
+  outcome     String?
+  contacts    String?
+  mediaLinks  String[]
+
+  @@map("event_attendance")
+}
+
+model OrganiserInteraction {
+  id                 String            @id @default(cuid())
+  eventId            String?
+  event              Event?            @relation(fields: [eventId], references: [id])
+  mediaOpportunityId String?
+  mediaOpportunity   MediaOpportunity? @relation(fields: [mediaOpportunityId], references: [id])
+  interactionType    InteractionType
+  channel            String
+  summary            String
+  interactedBy       String
+  interactedAt       DateTime
+  followUpDate       DateTime?
+  followUpDone       Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+
+  @@map("organiser_interactions")
+}
+
+// ─────────────────────────────────────────────
+// COMMUNITY TRACKING
+// ─────────────────────────────────────────────
+
+model CommunityGroup {
+  id         String   @id @default(cuid())
+  chapterId  String?
+  chapter    Chapter? @relation(fields: [chapterId], references: [id])
+  name       String
+  platform   String   @default("WHATSAPP")
+  groupLink  String?
+  isNational Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  metrics CommunityMetric[]
+
+  @@map("community_groups")
+}
+
+model CommunityMetric {
+  id                  String          @id @default(cuid())
+  groupId             String
+  group               CommunityGroup  @relation(fields: [groupId], references: [id])
+  chapterId           String?
+  chapter             Chapter?        @relation(fields: [chapterId], references: [id])
+  reportedById        String
+  reportedBy          User            @relation("MetricReporter", fields: [reportedById], references: [id])
+  periodStart         DateTime
+  periodEnd           DateTime
+  totalMembers        Int
+  newMembersAdded     Int             @default(0)
+  membersLeft         Int             @default(0)
+  activeMembers       Int?
+  announcementsShared Int             @default(0)
+  eventsPromoted      Int             @default(0)
+  questionsAsked      Int             @default(0)
+  evidenceUrl         String?
+  notes               String?
+  submittedAt         DateTime        @default(now())
+  verifiedAt          DateTime?
+  verifiedById        String?
+  verifiedBy          User?           @relation("MetricVerifier", fields: [verifiedById], references: [id])
+
+  @@map("community_metrics")
+}
+
+// ─────────────────────────────────────────────
+// MEDIA & INDUSTRY VISIBILITY
+// ─────────────────────────────────────────────
+
+model MediaOrganisation {
+  id             String    @id @default(cuid())
+  name           String
+  type           MediaType
+  country        String    @default("Kenya")
+  website        String?
+  linkedinUrl    String?
+  twitterUrl     String?
+  instagramUrl   String?
+  audience       String?
+  estimatedReach Int?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  contacts      MediaContact[]
+  opportunities MediaOpportunity[]
+
+  @@map("media_organisations")
+}
+
+model MediaContact {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   MediaOrganisation @relation(fields: [organisationId], references: [id])
+  name           String
+  role           String?
+  email          String?
+  phone          String?
+  linkedinUrl    String?
+  twitterUrl     String?
+  notes          String?
+  createdAt      DateTime          @default(now())
+
+  opportunities MediaOpportunity[]
+
+  @@map("media_contacts")
+}
+
+model MediaOpportunity {
+  id                 String              @id @default(cuid())
+  organisationId     String
+  organisation       MediaOrganisation   @relation(fields: [organisationId], references: [id])
+  contactId          String?
+  contact            MediaContact?       @relation(fields: [contactId], references: [id])
+  programmeName      String?
+  topicProposed      String
+  spokespersonUserId String?
+  outreachChannel    String?
+  pitchSentAt        DateTime?
+  status             MediaOutreachStatus @default(IDENTIFIED)
+  followUpDate       DateTime?
+  interviewDate      DateTime?
+  publicationUrl     String?
+  recordingUrl       String?
+  evidenceUrl        String?
+  estimatedReach     Int?
+  engagementStats    String?
+  partnershipValue   String?
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  interactions OrganiserInteraction[]
+
+  @@map("media_opportunities")
+}
+
+// ─────────────────────────────────────────────
+// CERTIFICATES
+// ─────────────────────────────────────────────
+
+model CertificateTemplate {
+  id              String         @id @default(cuid())
+  name            String
+  tier            AmbassadorTier?
+  htmlTemplate    String         @db.Text
+  signatureConfig Json           // {signatoryName, title, signatureImageUrl}
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  certificates Certificate[]
+  milestones   Milestone[]
+
+  @@map("certificate_templates")
+}
+
+model Certificate {
+  id              String              @id @default(cuid())
+  ambassadorId    String
+  ambassador      AmbassadorProfile   @relation(fields: [ambassadorId], references: [id])
+  issuedToUserId  String
+  issuedTo        User                @relation("IssuedTo", fields: [issuedToUserId], references: [id])
+  templateId      String
+  template        CertificateTemplate @relation(fields: [templateId], references: [id])
+  achievementId   String?             @unique
+  achievement     TierAchievement?    @relation(fields: [achievementId], references: [id])
+  certificateCode String              @unique
+  verifyUrl       String
+  qrCodeUrl       String?
+  pdfUrl          String?
+  badgeUrl        String?
+  issuedAt        DateTime            @default(now())
+  isRevoked       Boolean             @default(false)
+  revokedAt       DateTime?
+  revokedReason   String?
+  revokedBy       String?
+  metadata        Json?               // snapshot: name, institution, tier, date
+
+  verifications CertificateVerification[]
+
+  @@map("certificates")
+}
+
+model CertificateVerification {
+  id            String      @id @default(cuid())
+  certificateId String
+  certificate   Certificate @relation(fields: [certificateId], references: [id])
+  verifiedAt    DateTime    @default(now())
+  ipAddress     String?
+  userAgent     String?
+  referrer      String?
+
+  @@map("certificate_verifications")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS, REPORTS & AUDIT
+// ─────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  type        NotificationType
+  title       String
+  body        String
+  data        Json?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  sentByEmail Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // weekly | monthly | quarterly | annual
+  scope       String   // national | chapter | ambassador
+  scopeId     String?
+  generatedById String
+  generatedBy User     @relation(fields: [generatedById], references: [id])
+  fileUrl     String?
+  parameters  Json
+  createdAt   DateTime @default(now())
+
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  resource   String
+  resourceId String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([resource, resourceId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// SYSTEM SETTINGS
+// ─────────────────────────────────────────────
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  label     String?
+  group     String?  // scoring | milestones | notifications | general
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("system_settings")
+}

@@ -1,0 +1,17 @@
+FROM node:22-alpine
+RUN apk add --no-cache libc6-compat openssl chromium
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+COPY --from=campus_app:latest /app/node_modules ./node_modules
+COPY workers ./workers
+COPY src/server ./src/server
+COPY prisma ./prisma
+COPY tsconfig.json ./
+
+RUN npx prisma generate
+
+CMD ["node", "--require", "ts-node/register", "workers/index.ts"]
